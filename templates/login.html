@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Регистрация' if is_register else 'Вход' }} — Anki MVP{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto mt-16">
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8">
+        <h2 class="text-2xl font-bold mb-6 text-center">
+            {{ '📝 Регистрация' if is_register else '🔐 Вход' }}
+        </h2>
+        <form method="POST" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Имя пользователя
+                </label>
+                <input type="text" name="username" required autocomplete="username"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
+                              bg-white dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none
+                              transition-shadow text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Пароль
+                </label>
+                <input type="password" name="password" required
+                       autocomplete="{{ 'new-password' if is_register else 'current-password' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg
+                              bg-white dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none
+                              transition-shadow text-sm">
+                {% if is_register %}
+                    <p class="text-xs text-gray-400 mt-1">Минимум 6 символов</p>
+                {% endif %}
+            </div>
+            <button type="submit"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
+                           text-white font-semibold py-2.5 rounded-lg transition-colors shadow-sm">
+                {{ 'Создать аккаунт' if is_register else 'Войти' }}
+            </button>
+        </form>
+        <div class="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">
+            {% if is_register %}
+                Уже есть аккаунт?
+                <a href="{{ url_for('login') }}" class="text-indigo-500 hover:underline font-medium">Войти</a>
+            {% else %}
+                Нет аккаунта?
+                <a href="{{ url_for('register') }}" class="text-indigo-500 hover:underline font-medium">Зарегистрироваться</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Обучение — {{ deck.name }}{% endblock %}
+
+{% block content %}
+{% if done %}
+<div class="flex flex-col items-center justify-center py-24 animate-fade-in">
+    <div class="text-6xl mb-4">🏆</div>
+    <h2 class="text-3xl font-bold text-gray-800 dark:text-white mb-2">Колода пройдена!</h2>
+    <p class="text-gray-500 mb-6">Отличная работа. Твой мозг стал чуточку сильнее.</p>
+    <a href="{{ url_for('index') }}" class="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-all">На главную</a>
+</div>
+{% else %}
+<div class="max-w-xl mx-auto px-4">
+    <div class="flex justify-between items-end mb-2">
+        <button id="undo-btn" onclick="undoLast()" class="hidden text-xs text-orange-500 hover:text-orange-600 transition-all">↩ Отменить прошлый</button>
+        <span class="text-sm font-medium text-gray-400 ml-auto">Карточек: <span id="counter" class="text-indigo-500 font-bold">{{ total }}</span></span>
+    </div>
+
+    <div class="w-full bg-gray-200 dark:bg-gray-800 h-1.5 rounded-full mb-1 overflow-hidden">
+        <div id="progress-bar" class="bg-indigo-500 h-full transition-all duration-700 ease-out" style="width: 0%"></div>
+    </div>
+
+    <div class="w-full bg-transparent h-1 mb-6 rounded-full overflow-hidden">
+        <div id="timer-bar" class="bg-amber-400 h-full transition-all ease-linear" style="width: 100%"></div>
+    </div>
+
+    <div class="perspective w-full mb-6 cursor-pointer" id="card-container" style="perspective: 1000px;">
+        <div class="flip-card w-full transition-transform duration-500 relative shadow-2xl rounded-3xl" id="flip-wrapper" style="transform-style: preserve-3d; min-height: 450px;">
+
+            <div class="flip-card-front absolute inset-0 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl flex flex-col items-center justify-center p-8" style="backface-visibility: hidden;">
+                <div class="flex flex-col items-center gap-6">
+                    <h2 id="front-text" class="text-4xl font-bold text-center text-gray-800 dark:text-white break-words w-full"></h2>
+                    <button onclick="speakText(event)" class="w-12 h-12 flex items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 rounded-full hover:scale-110 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                    </button>
+                </div>
+                <p class="absolute bottom-6 text-gray-400 text-xs font-medium uppercase tracking-widest">Нажмите, чтобы перевернуть</p>
+            </div>
+
+            <div class="flip-card-back absolute inset-0 bg-white dark:bg-gray-900 border-2 border-indigo-500 rounded-3xl flex flex-col p-2" style="backface-visibility: hidden; transform: rotateY(180deg);">
+                <div class="flex-1 overflow-y-auto p-6 scrollbar-hide text-left">
+                    <div id="back-text" class="text-sm sm:text-base text-gray-700 dark:text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">
+                        </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="controls" class="invisible grid grid-cols-4 gap-3 animate-slide-up">
+        <button onclick="submitAnswer(1)" class="group flex flex-col items-center bg-red-50 dark:bg-red-900/20 hover:bg-red-500 p-3 rounded-2xl transition-all">
+            <span class="text-red-600 group-hover:text-white font-bold">1</span>
+            <span class="text-[10px] uppercase text-red-400 group-hover:text-red-100">Снова</span>
+        </button>
+        <button onclick="submitAnswer(2)" class="group flex flex-col items-center bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-500 p-3 rounded-2xl transition-all">
+            <span class="text-orange-600 group-hover:text-white font-bold">2</span>
+            <span class="text-[10px] uppercase text-orange-400 group-hover:text-orange-100">Трудно</span>
+        </button>
+        <button onclick="submitAnswer(3)" class="group flex flex-col items-center bg-green-50 dark:bg-green-900/20 hover:bg-green-500 p-3 rounded-2xl transition-all">
+            <span class="text-green-600 group-hover:text-white font-bold">3</span>
+            <span class="text-[10px] uppercase text-green-400 group-hover:text-green-100">Норм</span>
+        </button>
+        <button onclick="submitAnswer(4)" class="group flex flex-col items-center bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-500 p-3 rounded-2xl transition-all">
+            <span class="text-blue-600 group-hover:text-white font-bold">4</span>
+            <span class="text-[10px] uppercase text-blue-400 group-hover:text-blue-100">Легко</span>
+        </button>
+    </div>
+</div>
+
+<style>
+    .flipped { transform: rotateY(180deg); }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes slide-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slide-up { animation: slide-up 0.4s ease-out forwards; }
+</style>
+
+<script>
+    let currentCardId = null;
+    let lastAnsweredId = null;
+    let isFlipped = false;
+    let initialTotal = {{ total }};
+    let timerInterval;
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        let time = 15000;
+        let start = Date.now();
+        let bar = document.getElementById('timer-bar');
+        bar.style.transition = 'none';
+        bar.style.width = '100%';
+
+        timerInterval = setInterval(() => {
+            if (isFlipped) {
+                bar.style.width = '0%';
+                return clearInterval(timerInterval);
+            }
+            let percent = 100 - ((Date.now() - start) / time) * 100;
+            bar.style.width = Math.max(percent, 0) + '%';
+            if (percent <= 0) {
+                clearInterval(timerInterval);
+                flip();
+            }
+        }, 50);
+    }
+
+    function loadNextCard() {
+        isFlipped = false;
+        const wrapper = document.getElementById('flip-wrapper');
+        wrapper.classList.remove('flipped');
+        document.getElementById('controls').classList.add('invisible');
+
+        fetch(`/api/study/{{ deck.id }}/next`).then(r => r.json()).then(data => {
+            if (data.done) { window.location.reload(); return; }
+
+            currentCardId = data.card.id;
+            document.getElementById('front-text').innerText = data.card.front;
+            document.getElementById('back-text').innerText = data.card.back;
+            document.getElementById('counter').innerText = data.remaining;
+
+            let progress = ((initialTotal - data.remaining) / initialTotal) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+
+            startTimer();
+        });
+    }
+
+    function flip() {
+        if (!isFlipped && currentCardId) {
+            isFlipped = true;
+            document.getElementById('flip-wrapper').classList.add('flipped');
+            document.getElementById('controls').classList.remove('invisible');
+            clearInterval(timerInterval);
+        }
+    }
+
+    function submitAnswer(rating) {
+        if (!isFlipped) return; // Защита от случайного нажатия до переворота
+        lastAnsweredId = currentCardId;
+        fetch('/api/study/answer', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ card_id: currentCardId, rating: rating })
+        }).then(() => {
+            document.getElementById('undo-btn').classList.remove('hidden');
+            loadNextCard();
+        });
+    }
+
+    // ГОРЯЧИЕ КЛАВИШИ
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            isFlipped ? null : flip();
+        }
+        if (isFlipped) {
+            if (e.key === '1') submitAnswer(1);
+            if (e.key === '2') submitAnswer(2);
+            if (e.key === '3') submitAnswer(3);
+            if (e.key === '4') submitAnswer(4);
+        }
+    });
+
+    function speakText(e) {
+        e.stopPropagation();
+        const text = document.getElementById('front-text').innerText;
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'en-US';
+        window.speechSynthesis.speak(msg);
+    }
+
+    document.getElementById('card-container').onclick = flip;
+    loadNextCard();
+</script>
+{% endif %}
+{% endblock %}

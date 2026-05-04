@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4 animate-fade-in">
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800 dark:text-white">{{ deck.name }}</h1>
+            <p class="text-sm text-gray-500 italic">{{ deck.description or 'Колода для изучения слов' }}</p>
+        </div>
+        <a href="{{ url_for('index') }}" class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Назад к колодам
+        </a>
+    </div>
+
+    <div id="add-form-container" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-xl mb-12 transition-all">
+        <h3 id="form-title" class="font-bold mb-6 text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <span class="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600">➕</span>
+            Добавить новую карточку
+        </h3>
+
+        <form id="main-card-form" action="{{ url_for('new_card', deck_id=deck.id) }}" method="POST" class="space-y-5">
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">Слово или фраза</label>
+                    <input type="text" name="front" id="new-front" placeholder="Например: ephemeral" required
+                           class="w-full px-4 py-3 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-800 focus:border-indigo-500 focus:ring-0 outline-none transition-all text-lg font-medium">
+                </div>
+
+                <div class="flex items-end">
+                    <button type="button" id="ai-gen-btn" onclick="generateComplexAI()"
+                            class="h-[52px] bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none active:scale-95">
+                        <span id="btn-icon">✨</span> <span id="btn-text">ИИ-Заполнение</span>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">Детальная информация (Back)</label>
+                <textarea name="back" id="new-back" placeholder="Здесь появится перевод и статистика..." required
+                          class="w-full px-4 py-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-800 focus:border-indigo-500 focus:ring-0 outline-none text-sm font-mono min-h-[250px] transition-all scrollbar-hide"></textarea>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">Теги</label>
+                    <input type="text" name="tags" id="new-tags" placeholder="C1, Academic, Verb"
+                           class="w-full px-4 py-3 border-2 border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-800 focus:border-indigo-500 focus:ring-0 outline-none text-sm">
+                </div>
+                <div class="flex items-end gap-2">
+                    <button type="button" id="cancel-edit" onclick="resetForm()" class="hidden px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all">
+                        Отмена
+                    </button>
+                    <button type="submit" id="submit-btn" class="flex-1 sm:flex-none px-10 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-100 dark:shadow-none active:scale-95">
+                        Сохранить карточку
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="space-y-6">
+        <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+            <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-3">
+                🗂 Карточки в колоде
+                <span class="text-xs font-bold bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400 px-3 py-1 rounded-full">
+                    {{ cards|length }}
+                </span>
+            </h3>
+        </div>
+
+        <div class="grid gap-4">
+            {% for card in cards %}
+            <div class="group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all">
+                <div class="flex justify-between items-start gap-4">
+                    <div class="flex-1 min-w-0" onclick="editCardInline('{{ card.id }}', '{{ card.front|e }}', '{{ card.back|e }}', '{{ card.tags|e }}')" class="cursor-pointer">
+                        <div class="flex items-center gap-3 mb-2">
+                            <h4 class="text-lg font-bold text-indigo-600 dark:text-indigo-400 truncate">{{ card.front }}</h4>
+                            {% if card.tags %}
+                            <span class="text-[10px] font-bold uppercase tracking-tighter bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-md">
+                                {{ card.tags }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 font-mono italic">
+                            {{ card.back.split('\n')[0] }}
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        <form action="{{ url_for('delete_card', card_id=card.id) }}" method="POST" onsubmit="return confirm('Удалить карточку?')">
+                            <button type="submit" class="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-16 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl">
+                <p class="text-gray-400 font-medium">Колода пуста. Самое время добавить первое слово! 🚀</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+// ГЕНЕРАЦИЯ ИИ
+async function generateComplexAI() {
+    const wordInput = document.getElementById('new-front');
+    const backArea = document.getElementById('new-back');
+    const btn = document.getElementById('ai-gen-btn');
+    const btnText = document.getElementById('btn-text');
+    const word = wordInput.value.trim();
+
+    if (!word) {
+        alert('Сначала введите слово');
+        wordInput.focus();
+        return;
+    }
+
+    btn.disabled = true;
+    btn.classList.replace('bg-indigo-600', 'bg-gray-400');
+    btnText.innerText = 'Анализирую...';
+
+    try {
+        const response = await fetch('/api/ai/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ word: word })
+        });
+        const data = await response.json();
+        if (data.example) {
+            backArea.value = data.example;
+            backArea.style.height = 'auto';
+            backArea.style.height = (backArea.scrollHeight + 10) + 'px';
+        }
+    } catch (err) {
+        alert('Ошибка связи с ИИ');
+    } finally {
+        btn.disabled = false;
+        btn.classList.replace('bg-gray-400', 'bg-indigo-600');
+        btnText.innerText = 'ИИ-Заполнение';
+    }
+}
+
+// БЫСТРОЕ РЕДАКТИРОВАНИЕ
+function editCardInline(id, front, back, tags) {
+    // Прокрутка к форме
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Подстановка данных
+    document.getElementById('new-front').value = front;
+    document.getElementById('new-back').value = back;
+    document.getElementById('new-tags').value = tags;
+
+    // Меняем заголовок и кнопки
+    document.getElementById('form-title').innerHTML = `<span class="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-amber-600">✏️</span> Редактирование карточки`;
+    document.getElementById('submit-btn').innerText = "Обновить карточку";
+    document.getElementById('submit-btn').classList.replace('bg-emerald-600', 'bg-amber-600');
+    document.getElementById('cancel-edit').classList.remove('hidden');
+
+    // Меняем Action формы на маршрут редактирования
+    document.getElementById('main-card-form').action = `/cards/${id}/edit`;
+}
+
+function resetForm() {
+    document.getElementById('main-card-form').reset();
+    document.getElementById('form-title').innerHTML = `<span class="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600">➕</span> Добавить новую карточку`;
+    document.getElementById('submit-btn').innerText = "Сохранить карточку";
+    document.getElementById('submit-btn').classList.replace('bg-amber-600', 'bg-emerald-600');
+    document.getElementById('cancel-edit').classList.add('hidden');
+    document.getElementById('main-card-form').action = "{{ url_for('new_card', deck_id=deck.id) }}";
+}
+</script>
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+</style>
+{% endblock %}
