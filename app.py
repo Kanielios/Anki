@@ -2,10 +2,12 @@ import os
 import csv
 from io import StringIO
 from pathlib import Path
+import secrets
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, Response, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from groq import Groq
 import database as db
 from models import Rating
@@ -14,7 +16,8 @@ env_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-123")
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
@@ -73,8 +76,11 @@ def index():
 def new_deck():
     name = request.form.get("name", "").strip()
     if name:
-        try: db.create_deck(current_user.id, name, request.form.get("description", ""))
-        except: flash("Ошибка: колода с таким именем уже есть")
+        try:
+            db.create_deck(current_user.id, name, request.form.get("description", "").strip())
+            flash("Колода создана")
+        except Exception:
+            flash("Ошибка: колода с таким именем уже есть")
     return redirect(url_for("index"))
 
 @app.route("/decks/<int:deck_id>/delete", methods=["POST"])
@@ -90,19 +96,62 @@ def deck_detail(deck_id):
     if not deck: return redirect(url_for("index"))
     return render_template("deck.html", deck=deck, cards=db.get_cards_for_deck(current_user.id, deck_id), stats=db.get_deck_stats(current_user.id, deck_id))
 
+
+@app.route("/decks/<int:deck_id>/settings", methods=["POST"])
+@login_required
+def update_deck_settings(deck_id):
+    deck = db.get_deck(current_user.id, deck_id)
+    if not deck:
+        flash("Колода не найдена")
+        return redirect(url_for("index"))
+
+    try:
+        deck.new_per_day = max(0, min(200, int(request.form.get("new_per_day", deck.new_per_day))))
+        deck.review_per_day = max(0, min(1000, int(request.form.get("review_per_day", deck.review_per_day))))
+        with db.db_session() as conn:
+            conn.execute(
+                "UPDATE decks SET description=?, new_per_day=?, review_per_day=? WHERE id=? AND user_id=?",
+                (
+                    request.form.get("description", "").strip(),
+                    deck.new_per_day,
+                    deck.review_per_day,
+                    deck.id,
+                    current_user.id,
+                ),
+            )
+        flash("Настройки колоды обновлены")
+    except ValueError:
+        flash("Лимиты должны быть числами")
+    return redirect(url_for("deck_detail", deck_id=deck_id))
+
 @app.route("/decks/<int:deck_id>/cards/new", methods=["POST"])
 @login_required
 def new_card(deck_id):
     front, back = request.form.get("front", "").strip(), request.form.get("back", "").strip()
-    if front and back: db.create_card(current_user.id, deck_id, front, back, request.form.get("tags", "").strip())
+    if front and back:
+        try:
+            db.create_card(current_user.id, deck_id, front, back, request.form.get("tags", "").strip())
+            flash("Карточка сохранена")
+        except ValueError:
+            flash("Колода не найдена")
     return redirect(url_for("deck_detail", deck_id=deck_id))
 
 @app.route("/decks/<int:deck_id>/import", methods=["POST"])
 @login_required
 def import_csv(deck_id):
+    if not db.get_deck(current_user.id, deck_id):
+        flash("Колода не найдена")
+        return redirect(url_for("index"))
+
     file = request.files.get("csv_file")
-    if file and file.filename.endswith('.csv'):
-        stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
+    filename = secure_filename(file.filename or "") if file else ""
+    if file and filename.lower().endswith('.csv'):
+        raw = file.stream.read()
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = raw.decode("cp1251")
+        stream = StringIO(text, newline=None)
         reader = csv.reader(stream, delimiter=',')
         count = 0
         for row in reader:
@@ -110,7 +159,30 @@ def import_csv(deck_id):
                 db.create_card(current_user.id, deck_id, row[0].strip(), row[1].strip(), row[2].strip() if len(row) > 2 else "")
                 count += 1
         flash(f"Импортировано карточек: {count}")
+    else:
+        flash("Загрузите CSV-файл")
     return redirect(url_for("deck_detail", deck_id=deck_id))
+
+
+@app.route("/decks/<int:deck_id>/export")
+@login_required
+def export_csv(deck_id):
+    deck = db.get_deck(current_user.id, deck_id)
+    if not deck:
+        return redirect(url_for("index"))
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["front", "back", "tags"])
+    for card in db.get_cards_for_deck(current_user.id, deck_id):
+        writer.writerow([card.front, card.back, card.tags])
+
+    filename = secure_filename(deck.name) or f"deck-{deck_id}"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}.csv"},
+    )
 
 @app.route("/cards/<int:card_id>/delete", methods=["POST"])
 @login_required
@@ -139,6 +211,8 @@ def study(deck_id):
 @app.route("/api/study/<int:deck_id>/next")
 @login_required
 def api_next_card(deck_id):
+    if not db.get_deck(current_user.id, deck_id):
+        return jsonify({"error": "Deck not found"}), 404
     cards = db.get_due_cards(current_user.id, deck_id, limit=1)
     if not cards: return jsonify({"done": True})
     return jsonify({
@@ -155,18 +229,32 @@ def api_answer():
     card = db.get_card(current_user.id, data.get("card_id"))
     if not card: return jsonify({"error": "Access denied"}), 404
     try:
+        rating = Rating(int(data.get("rating")))
         prev_state = {"state": int(card.state), "interval": card.interval, "ease": card.ease, "due": card.due, "reps": card.reps, "lapses": card.lapses, "learning_step": card.learning_step}
-        card.answer(Rating(int(data.get("rating"))))
+        card.answer(rating)
         db.save_card(card)
-        db.log_study(current_user.id, card, int(data.get("rating")), prev_state)
+        db.log_study(current_user.id, card, int(rating), prev_state)
         return jsonify({"success": True})
-    except Exception as e: return jsonify({"error": str(e)}), 500
+    except (TypeError, ValueError):
+        return jsonify({"error": "Bad rating"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/study/undo", methods=["POST"])
+@login_required
+def api_undo():
+    card = db.undo_last_study(current_user.id)
+    if not card:
+        return jsonify({"error": "Nothing to undo"}), 404
+    return jsonify({"success": True, "card_id": card.id})
 
 
 @app.route("/api/ai/generate", methods=["POST"])
 @login_required
 def ai_generate():
-    word = request.json.get("word")
+    payload = request.get_json(silent=True) or {}
+    word = payload.get("word", "").strip()
     if not client or not word:
         return jsonify({"error": "API не настроен или слово пустое"}), 400
 
@@ -176,8 +264,7 @@ def ai_generate():
         "и выдать структурированную карточку.\n\n"
         "Формат ответа:\n"
         "📌 [2-3 Перевода]\n"
-        "[(A1-C2)] [Эмодзи цвета]\n"
-        "📊 Частотность: [Заполни шкалу ▓ на базе данных о частоте использования] (X/10)\n"
+        "📊 Частотность: [Заполни шкалу ▓ на базе данных о частоте использования] (X/10) точно определи количество этих штучек\n"
         "📝 Стиль: [Нейтральный/Официальный/Сленг]\n"
         "••••••••••••••••••••\n"
         "💬 Примеры:\n"
@@ -187,9 +274,6 @@ def ai_generate():
         "🧩 Когда используется\n"
         "[Краткое пояснение контекста на русском]\n"
         "••••••••••••••••••••\n"
-        "📈 Статистика:\n"
-        "[Укажи примерное распределение использования слова по уровням A1-C2 в цифрах от 0 до 10]\n\n"
-        "Ограничения:\n"
         "- Никаких вступительных фраз.\n"
         "- Строго соблюдай пунктирные линии.\n"
         "- Если слово имеет несколько значений, выбери самое частое."

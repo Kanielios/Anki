@@ -13,6 +13,21 @@
         </a>
     </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-4">
+            <span class="text-xs uppercase font-bold text-gray-400">Всего</span>
+            <div class="text-2xl font-bold text-gray-800 dark:text-white">{{ stats.total }}</div>
+        </div>
+        <div class="bg-white dark:bg-gray-900 border border-orange-100 dark:border-orange-900/30 rounded-2xl p-4">
+            <span class="text-xs uppercase font-bold text-orange-500">К повтору</span>
+            <div class="text-2xl font-bold text-orange-700 dark:text-orange-300">{{ stats.due }}</div>
+        </div>
+        <div class="bg-white dark:bg-gray-900 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-4">
+            <span class="text-xs uppercase font-bold text-blue-500">Новые</span>
+            <div class="text-2xl font-bold text-blue-700 dark:text-blue-300">{{ stats.new }}</div>
+        </div>
+    </div>
+
     <div id="add-form-container" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-xl mb-12 transition-all">
         <h3 id="form-title" class="font-bold mb-6 text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <span class="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600">➕</span>
@@ -59,6 +74,48 @@
         </form>
     </div>
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+        <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-5">
+            <h3 class="font-bold mb-4 text-gray-800 dark:text-gray-200">Настройки обучения</h3>
+            <form action="{{ url_for('update_deck_settings', deck_id=deck.id) }}" method="POST" class="space-y-4">
+                <textarea name="description" rows="2" placeholder="Описание колоды"
+                          class="w-full px-4 py-3 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-800 outline-none text-sm">{{ deck.description }}</textarea>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block">
+                        <span class="block text-xs font-bold text-gray-400 uppercase mb-1">Новых в день</span>
+                        <input type="number" min="0" max="200" name="new_per_day" value="{{ deck.new_per_day }}"
+                               class="w-full px-3 py-2 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-800 outline-none text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="block text-xs font-bold text-gray-400 uppercase mb-1">Повторов в день</span>
+                        <input type="number" min="0" max="1000" name="review_per_day" value="{{ deck.review_per_day }}"
+                               class="w-full px-3 py-2 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-800 outline-none text-sm">
+                    </label>
+                </div>
+                <button type="submit" class="w-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 py-2.5 rounded-xl text-sm font-bold">
+                    Сохранить настройки
+                </button>
+            </form>
+        </div>
+
+        <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-5">
+            <h3 class="font-bold mb-4 text-gray-800 dark:text-gray-200">Импорт и экспорт</h3>
+            <form action="{{ url_for('import_csv', deck_id=deck.id) }}" method="POST" enctype="multipart/form-data" class="space-y-4">
+                <input type="file" name="csv_file" accept=".csv"
+                       class="block w-full text-sm text-gray-500 file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:font-bold file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-200">
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-bold">
+                        Импорт CSV
+                    </button>
+                    <a href="{{ url_for('export_csv', deck_id=deck.id) }}"
+                       class="flex-1 text-center bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-2.5 rounded-xl text-sm font-bold">
+                        Экспорт CSV
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="space-y-6">
         <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
             <h3 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-3">
@@ -67,13 +124,15 @@
                     {{ cards|length }}
                 </span>
             </h3>
+            <input id="card-search" type="search" placeholder="Найти карточку"
+                   class="w-44 sm:w-64 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-sm outline-none focus:border-indigo-400">
         </div>
 
         <div class="grid gap-4">
             {% for card in cards %}
-            <div class="group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all">
+            <div class="card-row group bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all" data-search="{{ (card.front ~ ' ' ~ card.back ~ ' ' ~ card.tags)|lower|e }}">
                 <div class="flex justify-between items-start gap-4">
-                    <div class="flex-1 min-w-0" onclick="editCardInline('{{ card.id }}', '{{ card.front|e }}', '{{ card.back|e }}', '{{ card.tags|e }}')" class="cursor-pointer">
+                    <button type="button" class="flex-1 min-w-0 text-left cursor-pointer" onclick='editCardInline({{ {"id": card.id, "front": card.front, "back": card.back, "tags": card.tags}|tojson }})'>
                         <div class="flex items-center gap-3 mb-2">
                             <h4 class="text-lg font-bold text-indigo-600 dark:text-indigo-400 truncate">{{ card.front }}</h4>
                             {% if card.tags %}
@@ -85,7 +144,7 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 font-mono italic">
                             {{ card.back.split('\n')[0] }}
                         </p>
-                    </div>
+                    </button>
 
                     <div class="flex items-center gap-1">
                         <form action="{{ url_for('delete_card', card_id=card.id) }}" method="POST" onsubmit="return confirm('Удалить карточку?')">
@@ -146,14 +205,14 @@ async function generateComplexAI() {
 }
 
 // БЫСТРОЕ РЕДАКТИРОВАНИЕ
-function editCardInline(id, front, back, tags) {
+function editCardInline(card) {
     // Прокрутка к форме
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Подстановка данных
-    document.getElementById('new-front').value = front;
-    document.getElementById('new-back').value = back;
-    document.getElementById('new-tags').value = tags;
+    document.getElementById('new-front').value = card.front;
+    document.getElementById('new-back').value = card.back;
+    document.getElementById('new-tags').value = card.tags;
 
     // Меняем заголовок и кнопки
     document.getElementById('form-title').innerHTML = `<span class="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-amber-600">✏️</span> Редактирование карточки`;
@@ -162,7 +221,7 @@ function editCardInline(id, front, back, tags) {
     document.getElementById('cancel-edit').classList.remove('hidden');
 
     // Меняем Action формы на маршрут редактирования
-    document.getElementById('main-card-form').action = `/cards/${id}/edit`;
+    document.getElementById('main-card-form').action = `/cards/${card.id}/edit`;
 }
 
 function resetForm() {
@@ -173,6 +232,13 @@ function resetForm() {
     document.getElementById('cancel-edit').classList.add('hidden');
     document.getElementById('main-card-form').action = "{{ url_for('new_card', deck_id=deck.id) }}";
 }
+
+document.getElementById('card-search')?.addEventListener('input', (event) => {
+    const query = event.target.value.trim().toLowerCase();
+    document.querySelectorAll('.card-row').forEach((row) => {
+        row.classList.toggle('hidden', query && !row.dataset.search.includes(query));
+    });
+});
 </script>
 
 <style>

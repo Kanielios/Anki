@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Мои колоды — Anki MVP{% endblock %}
+{% block title %}Мои колоды — AnkiClone{% endblock %}
 {% block content %}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
@@ -32,6 +32,8 @@
             <form action="{{ url_for('new_deck') }}" method="POST" class="space-y-3">
                 <input type="text" name="name" placeholder="Название (напр. Oxford 3000)" required
                        class="w-full px-4 py-3 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all">
+                <textarea name="description" rows="2" placeholder="Короткое описание"
+                          class="w-full px-4 py-3 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"></textarea>
                 <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-sm font-bold transition-transform active:scale-95 shadow-lg shadow-indigo-100 dark:shadow-none">
                     Создать
                 </button>
@@ -93,6 +95,11 @@
                 Карточки
             </a>
         </div>
+    </div>
+    {% else %}
+    <div class="md:col-span-2 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl py-16 text-center">
+        <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-2">Пока нет колод</h3>
+        <p class="text-sm text-gray-400">Создай первую колоду справа и добавь несколько карточек.</p>
     </div>
     {% endfor %}
 </div>

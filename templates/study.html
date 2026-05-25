@@ -51,18 +51,22 @@
         <button onclick="submitAnswer(1)" class="group flex flex-col items-center bg-red-50 dark:bg-red-900/20 hover:bg-red-500 p-3 rounded-2xl transition-all">
             <span class="text-red-600 group-hover:text-white font-bold">1</span>
             <span class="text-[10px] uppercase text-red-400 group-hover:text-red-100">Снова</span>
+            <span id="hint-1" class="text-[10px] text-red-300 group-hover:text-red-50"></span>
         </button>
         <button onclick="submitAnswer(2)" class="group flex flex-col items-center bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-500 p-3 rounded-2xl transition-all">
             <span class="text-orange-600 group-hover:text-white font-bold">2</span>
             <span class="text-[10px] uppercase text-orange-400 group-hover:text-orange-100">Трудно</span>
+            <span id="hint-2" class="text-[10px] text-orange-300 group-hover:text-orange-50"></span>
         </button>
         <button onclick="submitAnswer(3)" class="group flex flex-col items-center bg-green-50 dark:bg-green-900/20 hover:bg-green-500 p-3 rounded-2xl transition-all">
             <span class="text-green-600 group-hover:text-white font-bold">3</span>
             <span class="text-[10px] uppercase text-green-400 group-hover:text-green-100">Норм</span>
+            <span id="hint-3" class="text-[10px] text-green-300 group-hover:text-green-50"></span>
         </button>
         <button onclick="submitAnswer(4)" class="group flex flex-col items-center bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-500 p-3 rounded-2xl transition-all">
             <span class="text-blue-600 group-hover:text-white font-bold">4</span>
             <span class="text-[10px] uppercase text-blue-400 group-hover:text-blue-100">Легко</span>
+            <span id="hint-4" class="text-[10px] text-blue-300 group-hover:text-blue-50"></span>
         </button>
     </div>
 </div>
@@ -85,6 +89,7 @@
     let isFlipped = false;
     let initialTotal = {{ total }};
     let timerInterval;
+    let isSubmitting = false;
 
     function startTimer() {
         clearInterval(timerInterval);
@@ -121,6 +126,9 @@
             document.getElementById('front-text').innerText = data.card.front;
             document.getElementById('back-text').innerText = data.card.back;
             document.getElementById('counter').innerText = data.remaining;
+            [1, 2, 3, 4].forEach((rating) => {
+                document.getElementById(`hint-${rating}`).innerText = data.hints?.[rating] || '';
+            });
 
             let progress = ((initialTotal - data.remaining) / initialTotal) * 100;
             document.getElementById('progress-bar').style.width = `${progress}%`;
@@ -139,15 +147,32 @@
     }
 
     function submitAnswer(rating) {
-        if (!isFlipped) return; // Защита от случайного нажатия до переворота
+        if (!isFlipped || isSubmitting) return; // Защита от случайного нажатия до переворота
+        isSubmitting = true;
         lastAnsweredId = currentCardId;
         fetch('/api/study/answer', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ card_id: currentCardId, rating: rating })
-        }).then(() => {
+        }).then((response) => {
+            if (!response.ok) throw new Error('Не удалось сохранить ответ');
             document.getElementById('undo-btn').classList.remove('hidden');
             loadNextCard();
+        }).catch((error) => {
+            alert(error.message);
+        }).finally(() => {
+            isSubmitting = false;
         });
+    }
+
+    function undoLast() {
+        fetch('/api/study/undo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        }).then((response) => {
+            if (!response.ok) throw new Error('Нечего отменять');
+            document.getElementById('undo-btn').classList.add('hidden');
+            loadNextCard();
+        }).catch((error) => alert(error.message));
     }
 
     // ГОРЯЧИЕ КЛАВИШИ
